@@ -2,81 +2,69 @@ import streamlit as st
 import pandas as pd
 import math
 
-# --- LÓGICA MATEMÁTICA ---
-def poisson_over(lam, line):
-    # Cálculo de probabilidad usando solo librerías estándar
-    prob_under = sum([(math.pow(lam, i) * math.exp(-lam)) / math.factorial(i) for i in range(int(line) + 1)])
+# --- LÓGICA DE PROBABILIDAD ---
+def get_poisson_over(lam, k):
+    """Calcula la probabilidad de que ocurran MÁS eventos que 'k'."""
+    prob_under = sum([(math.pow(lam, i) * math.exp(-lam)) / math.factorial(i) for i in range(int(k) + 1)])
     return round((1 - prob_under) * 100, 1)
 
-# --- BASE DE DATOS ---
-def get_stats(team_name):
-    # Estadísticas base. Puedes editar estos números para ajustar tus predicciones
-    db = {
-        "real madrid": {"goles": 2.5, "corners": 6.8, "tiros": 16.0, "tarjetas": 2.2},
-        "tunez": {"goles": 0.9, "corners": 3.2, "tiros": 8.0, "tarjetas": 3.5},
-        "países bajos": {"goles": 2.0, "corners": 6.0, "tiros": 14.0, "tarjetas": 1.8},
-        "manchester city": {"goles": 2.8, "corners": 7.5, "tiros": 18.0, "tarjetas": 1.5}
-    }
-    return db.get(team_name.lower(), {"goles": 1.5, "corners": 5.0, "tiros": 10.0, "tarjetas": 2.0})
-
-# --- ESTILO PROFESIONAL (HEATMAP) ---
-def color_conditional(val):
+# --- ESTILO ---
+def apply_color(val):
     try:
-        # Convertimos "45.0%" a número 45.0
         num = float(str(val).replace('%', ''))
-        # Colores estilo apuestas
-        if num >= 70: color = '#a9dfbf' # Verde claro
-        elif num >= 50: color = '#f9e79f' # Amarillo
-        else: color = '#f5b7b1' # Rojo claro
-        return f'background-color: {color}; color: black'
-    except:
-        return ''
+        if num > 60: return 'background-color: #a9dfbf; color: black'
+        elif num > 40: return 'background-color: #f9e79f; color: black'
+        else: return 'background-color: #f5b7b1; color: black'
+    except: return ''
 
 # --- INTERFAZ ---
-st.set_page_config(page_title="Botanalist Pro", layout="wide")
-st.title("⚽ Botanalist: Motor de Pronósticos")
+st.set_page_config(page_title="Predictor Mundial", layout="wide")
+st.title("⚽ Predictor: Estadísticas Reales (Últimos 14 partidos)")
 
-col1, col2 = st.columns(2)
-local = col1.text_input("Equipo Local", "Real Madrid")
-visita = col2.text_input("Equipo Visitante", "Tunez")
+# --- ENTRADA DE DATOS ---
+with st.expander("📊 Ingresa los totales de los últimos 14 partidos"):
+    col_a, col_b = st.columns(2)
+    
+    with col_a:
+        st.subheader("Equipo Local")
+        l_goles = st.number_input("Total Goles (14 partidos)", 0, 100, 20)
+        l_corners = st.number_input("Total Corners", 0, 200, 80)
+        l_tiros = st.number_input("Total Tiros al arco", 0, 200, 100)
+        l_tarjetas = st.number_input("Total Tarjetas", 0, 50, 20)
+        
+    with col_b:
+        st.subheader("Equipo Visitante")
+        v_goles = st.number_input("Total Goles (14 partidos) ", 0, 100, 15)
+        v_corners = st.number_input("Total Corners ", 0, 200, 70)
+        v_tiros = st.number_input("Total Tiros al arco ", 0, 200, 90)
+        v_tarjetas = st.number_input("Total Tarjetas ", 0, 50, 25)
 
-if st.button("Generar Pronóstico Profesional"):
-    stats_l = get_stats(local)
-    stats_v = get_stats(visita)
+if st.button("Calcular Probabilidades Reales"):
+    # Calculamos la media (Lambda) dividiendo entre 14
+    stats_l = {"goles": l_goles/14, "corners": l_corners/14, "tiros": l_tiros/14, "tarjetas": l_tarjetas/14}
+    stats_v = {"goles": v_goles/14, "corners": v_corners/14, "tiros": v_tiros/14, "tarjetas": v_tarjetas/14}
     
     mercados = {
-        "⚽ GOLES": {"stat": "goles", "lines": [1.5, 2.5, 3.5, 4.5]},
-        "🚩 CÓRNERS": {"stat": "corners", "lines": [7.5, 9.5, 11.5]},
-        "🎯 TIROS AL ARCO": {"stat": "tiros", "lines": [8.5, 10.5, 12.5]},
+        "⚽ GOLES": {"stat": "goles", "lines": [0.5, 1.5, 2.5, 3.5]},
+        "🚩 CÓRNERS": {"stat": "corners", "lines": [6.5, 8.5, 10.5]},
+        "🎯 TIROS": {"stat": "tiros", "lines": [8.5, 10.5, 12.5]},
         "🟨 TARJETAS": {"stat": "tarjetas", "lines": [1.5, 2.5, 3.5]}
     }
-    
+
     for titulo, cfg in mercados.items():
         st.subheader(titulo)
-        
         datos = []
         for l in cfg["lines"]:
-            p_l = poisson_over(stats_l[cfg["stat"]], l)
-            p_v = poisson_over(stats_v[cfg["stat"]], l)
-            media = round((p_l + p_v) / 2, 1)
-            
+            p_local = get_poisson_over(stats_l[cfg["stat"]], l)
+            p_visita = get_poisson_over(stats_v[cfg["stat"]], l)
             datos.append({
                 "Línea": f"Más de {l}",
-                f"{local.capitalize()}": f"{p_l}%",
-                f"{visita.capitalize()}": f"{p_v}%",
-                "Media (%)": f"{media}%"
+                "Prob. Local": f"{p_local}%",
+                "Prob. Visitante": f"{p_visita}%",
+                "Promedio": f"{round((p_local + p_visita)/2, 1)}%"
             })
         
-        # Crear DataFrame
         df = pd.DataFrame(datos)
-        
-        # APLICAR ESTILO (Cambiado a .map para compatibilidad moderna)
-        styled_df = df.style.map(
-            color_conditional, 
-            subset=[f"{local.capitalize()}", f"{visita.capitalize()}", "Media (%)"]
-        )
-        
+        styled_df = df.style.map(apply_color, subset=["Prob. Local", "Prob. Visitante", "Promedio"])
         st.dataframe(styled_df, use_container_width=True, hide_index=True)
         st.divider()
-
-st.success("Pronóstico generado con formato profesional.")
