@@ -1,62 +1,56 @@
 import streamlit as st
-import requests
 import math
 
-
-# --- CONFIGURACIÓN ---
-# En Streamlit Cloud, ve a "Settings" -> "Secrets" y agrega:
-# API_KEY = * b4dde78817a19a675c2f692dad2dc05a
-API_KEY = st.secrets.get("b4dde78817a19a675c2f692dad2dc05a")
-
+# --- FUNCIÓN DE DATOS (AQUÍ ES DONDE ALIMENTAS LA APP) ---
 def get_team_stats(team_name):
-    """Función simulada para llamar a la API"""
-    # Aquí iría la lógica real de request.get(...)
-    # Por ahora, es un esquema para que veas dónde va la magia
-    # url = f"https://api-football.com/v3/teams?search={team_name}"
-    # headers = {'x-rapidapi-key': API_KEY}
-    # response = requests.get(url, headers=headers)
-    # return response.json()
-    return {"goles": 2.1, "corners": 5.4, "tiros": 12.0} # Datos de prueba
+    # En el futuro, aquí conectarás a la API real. 
+    # Por ahora, estos son los datos que la app procesará.
+    return {
+        "goles": 2.1, 
+        "corners": 5.4, 
+        "tiros_arco": 6.2, 
+        "tarjetas": 1.8
+    }
 
-def poisson_prob(lmbda, k):
-    """Cálculo de probabilidad de Poisson: P(X=k) = (lambda^k * e^-lambda) / k!"""
-    return (math.pow(lmbda, k) * math.exp(-lmbda)) / math.factorial(k)
+st.set_page_config(page_title="Analizador Pro", layout="wide")
+st.title("⚽ Dashboard de Análisis Predictivo")
 
-st.title("⚽ Analizador Pro: Data Science Edition")
-
-# --- UI ---
-local = st.text_input("Equipo Local")
-visita = st.text_input("Equipo Visitante")
+col1, col2 = st.columns(2)
+local = col1.text_input("Equipo Local", "Real Madrid")
+visita = col2.text_input("Equipo Visitante", "Barcelona")
 
 if st.button("Analizar Partido"):
-    with st.spinner("Conectando a la base de datos..."):
-        # 1. Integración de datos (Simulada)
-        stats_local = get_team_stats(local)
-        stats_visita = get_team_stats(visita)
+    with st.spinner("Calculando probabilidades..."):
+        data_l = get_team_stats(local)
+        data_v = get_team_stats(visita)
         
-        # 2. Análisis Estadístico
-        st.subheader("Estadísticas Recopiladas")
-        col1, col2 = st.columns(2)
-        col1.metric("Goles Esperados (L)", stats_local['goles'])
-        col2.metric("Goles Esperados (V)", stats_visita['goles'])
+        # --- CÁLCULOS AUTOMÁTICOS ---
+        stats = ["goles", "corners", "tiros_arco", "tarjetas"]
         
-        # 3. Modelo de Probabilidad (Poisson)
-        st.subheader("Modelo Predictivo (Poisson)")
+        st.subheader("Análisis Comparativo (Promedios)")
         
-        # Probabilidad de que el local gane
-        # Comparativa simplificada de lambda
-        prob_local_win = (stats_local['goles'] / (stats_local['goles'] + stats_visita['goles'])) * 100
-        
-        st.write(f"Probabilidad de victoria para {local}: {prob_local_win:.2f}%")
-        st.progress(prob_local_win / 100)
-        
-        st.write(f"Probabilidad de victoria para {visita}: {100 - prob_local_win:.2f}%")
-        st.progress((100 - prob_local_win) / 100)
-        
-        # Análisis de riesgo
-        if abs(prob_local_win - 50) < 5:
-            st.warning("Partido equilibrado: Riesgo alto.")
-        elif prob_local_win > 60:
-            st.success(f"Alta confianza en victoria de {local}")
+        for stat in stats:
+            val_l = data_l[stat]
+            val_v = data_v[stat]
+            total = val_l + val_v
+            
+            # Cálculo de probabilidad simple
+            prob_l = (val_l / total) * 100 if total > 0 else 50
+            
+            # Visualización profesional
+            st.write(f"**{stat.upper()}**")
+            c1, c2, c3 = st.columns([1, 1, 2])
+            c1.metric(local, val_l)
+            c2.metric(visita, val_v)
+            c3.progress(prob_l / 100)
+            st.write(f"Probabilidad de dominio en {stat}: {local} {prob_l:.1f}% vs {visita} {100-prob_l:.1f}%")
+            st.divider()
 
-    
+        # --- MODELO DE POISSON (Para Goles) ---
+        st.subheader("Modelo Predictivo: Probabilidad de Goles (Poisson)")
+        def poisson_prob(lmbda, k):
+            return (math.pow(lmbda, k) * math.exp(-lmbda)) / math.factorial(k)
+        
+        # Probabilidad de victoria según Poisson (Simplificado)
+        win_prob = (data_l['goles'] / (data_l['goles'] + data_v['goles'])) * 100
+        st.success(f"Probabilidad de victoria estimada para {local}: {win_prob:.2f}%")
