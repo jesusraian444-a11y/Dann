@@ -2,46 +2,51 @@ import streamlit as st
 import pandas as pd
 import math
 
-# --- LÓGICA DE PROBABILIDAD POISSON (Sin librerías externas) ---
-def poisson_over(mu, k):
-    """Calcula la probabilidad de que ocurran > k eventos dado un promedio mu."""
-    # Probabilidad acumulada (Under)
-    prob_under = sum([(math.pow(mu, i) * math.exp(-mu)) / math.factorial(i) for i in range(int(k) + 1)])
-    # Probabilidad de Over
-    prob_over = 1 - prob_under
-    return round(prob_over * 100, 1)
+# --- LÓGICA MATEMÁTICA ---
+def poisson_over(lam, line):
+    prob_under = sum([(math.pow(lam, i) * math.exp(-lam)) / math.factorial(i) for i in range(int(line) + 1)])
+    return round((1 - prob_under) * 100, 1)
 
-# --- BASE DE DATOS (AQUÍ PONES LOS DATOS DEL MUNDIAL) ---
-# Edita estos valores con las estadísticas reales de tus partidos
+# --- BASE DE DATOS (Diferenciada para que los porcentajes varíen) ---
 def get_stats(team_name):
+    # Valores de ataque y defensa distintos para cada equipo
     db = {
-        "tunez": {"goles": 0.8, "corners": 3.5, "tiros": 7.0, "tarjetas": 2.1},
-        "paises bajos": {"goles": 1.9, "corners": 6.2, "tiros": 14.5, "tarjetas": 1.2},
-        "real madrid": {"goles": 2.4, "corners": 6.8, "tiros": 15.5, "tarjetas": 1.5},
-        "barcelona": {"goles": 2.2, "corners": 6.1, "tiros": 14.2, "tarjetas": 1.8}
+        "real madrid": {"goles": 2.5, "corners": 6.8, "tiros": 16.0, "tarjetas": 2.2},
+        "tunez": {"goles": 0.9, "corners": 3.2, "tiros": 8.0, "tarjetas": 3.5},
+        "paises bajos": {"goles": 2.0, "corners": 6.0, "tiros": 14.0, "tarjetas": 1.8},
+        "manchester city": {"goles": 2.8, "corners": 7.5, "tiros": 18.0, "tarjetas": 1.5}
     }
-    # Si el equipo no está, usa un promedio estándar
-    return db.get(team_name.lower(), {"goles": 1.2, "corners": 4.5, "tiros": 9.0, "tarjetas": 1.8})
+    return db.get(team_name.lower(), {"goles": 1.5, "corners": 5.0, "tiros": 10.0, "tarjetas": 2.0})
+
+# --- ESTILO PROFESIONAL (COLORES HEATMAP) ---
+def color_conditional(val):
+    """Aplica colores según el porcentaje para que parezca app de apuestas"""
+    try:
+        num = float(str(val).replace('%', ''))
+        if num > 70: color = '#2ecc71' # Verde
+        elif num > 50: color = '#f1c40f' # Amarillo
+        else: color = '#e74c3c' # Rojo
+        return f'background-color: {color}; color: black'
+    except:
+        return ''
 
 # --- INTERFAZ ---
 st.set_page_config(page_title="Botanalist Pro", layout="wide")
-st.title("⚽ Botanalist: Motor de Pronósticos")
+st.title("⚽ Botanalist: Panel Profesional")
 
-# Entradas
-c1, c2 = st.columns(2)
-local = c1.text_input("Equipo Local", "Tunez")
-visita = c2.text_input("Equipo Visitante", "Paises Bajos")
+col1, col2 = st.columns(2)
+local = col1.text_input("Equipo Local", "Real Madrid")
+visita = col2.text_input("Equipo Visitante", "Tunez")
 
-if st.button("Analizar"):
-    # Obtener stats
+if st.button("Generar Análisis Profesional"):
     stats_l = get_stats(local)
     stats_v = get_stats(visita)
     
     mercados = {
-        "GOLES": {"key": "goles", "lines": [0.5, 1.5, 2.5]},
-        "CÓRNERS": {"key": "corners", "lines": [7.5, 9.5, 11.5]},
-        "TIROS": {"key": "tiros", "lines": [8.5, 10.5, 12.5]},
-        "TARJETAS": {"key": "tarjetas", "lines": [1.5, 2.5, 3.5]}
+        "⚽ GOLES": {"stat": "goles", "lines": [1.5, 2.5, 3.5, 4.5]},
+        "🚩 CÓRNERS": {"stat": "corners", "lines": [7.5, 9.5, 11.5]},
+        "🎯 TIROS AL ARCO": {"stat": "tiros", "lines": [8.5, 10.5, 12.5]},
+        "🟨 TARJETAS": {"stat": "tarjetas", "lines": [1.5, 2.5, 3.5]}
     }
     
     for titulo, cfg in mercados.items():
@@ -49,18 +54,22 @@ if st.button("Analizar"):
         
         datos = []
         for l in cfg["lines"]:
-            p_l = poisson_over(stats_l[cfg["key"]], l)
-            p_v = poisson_over(stats_v[cfg["key"]], l)
+            p_l = poisson_over(stats_l[cfg["stat"]], l)
+            p_v = poisson_over(stats_v[cfg["stat"]], l)
             media = round((p_l + p_v) / 2, 1)
             
             datos.append({
                 "Línea": f"Más de {l}",
                 f"{local.capitalize()}": f"{p_l}%",
                 f"{visita.capitalize()}": f"{p_v}%",
-                "Media": f"{media}%"
+                "Media (%)": f"{media}%"
             })
         
-        st.table(pd.DataFrame(datos))
+        # Crear DataFrame y aplicar formato
+        df = pd.DataFrame(datos)
+        st.dataframe(
+            df.style.applymap(color_conditional, subset=[f"{local.capitalize()}", f"{visita.capitalize()}", "Media (%)"]),
+            use_container_width=True,
+            hide_index=True
+        )
         st.divider()
-
-st.info("Nota: Para obtener resultados distintos, asegúrate de que los equipos tengan promedios diferentes en la base de datos.")
