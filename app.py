@@ -1,45 +1,46 @@
-
 import streamlit as st
 import pandas as pd
 import math
 
 # --- LÓGICA MATEMÁTICA ---
 def poisson_over(lam, line):
+    # Cálculo de probabilidad usando solo librerías estándar
     prob_under = sum([(math.pow(lam, i) * math.exp(-lam)) / math.factorial(i) for i in range(int(line) + 1)])
     return round((1 - prob_under) * 100, 1)
 
-# --- BASE DE DATOS (Diferenciada para que los porcentajes varíen) ---
+# --- BASE DE DATOS ---
 def get_stats(team_name):
-    # Valores de ataque y defensa distintos para cada equipo
+    # Estadísticas base. Puedes editar estos números para ajustar tus predicciones
     db = {
         "real madrid": {"goles": 2.5, "corners": 6.8, "tiros": 16.0, "tarjetas": 2.2},
         "tunez": {"goles": 0.9, "corners": 3.2, "tiros": 8.0, "tarjetas": 3.5},
-        "paises bajos": {"goles": 2.0, "corners": 6.0, "tiros": 14.0, "tarjetas": 1.8},
+        "países bajos": {"goles": 2.0, "corners": 6.0, "tiros": 14.0, "tarjetas": 1.8},
         "manchester city": {"goles": 2.8, "corners": 7.5, "tiros": 18.0, "tarjetas": 1.5}
     }
     return db.get(team_name.lower(), {"goles": 1.5, "corners": 5.0, "tiros": 10.0, "tarjetas": 2.0})
 
-# --- ESTILO PROFESIONAL (COLORES HEATMAP) ---
+# --- ESTILO PROFESIONAL (HEATMAP) ---
 def color_conditional(val):
-    """Aplica colores según el porcentaje para que parezca app de apuestas"""
     try:
+        # Convertimos "45.0%" a número 45.0
         num = float(str(val).replace('%', ''))
-        if num > 70: color = '#2ecc71' # Verde
-        elif num > 50: color = '#f1c40f' # Amarillo
-        else: color = '#e74c3c' # Rojo
+        # Colores estilo apuestas
+        if num >= 70: color = '#a9dfbf' # Verde claro
+        elif num >= 50: color = '#f9e79f' # Amarillo
+        else: color = '#f5b7b1' # Rojo claro
         return f'background-color: {color}; color: black'
     except:
         return ''
 
 # --- INTERFAZ ---
 st.set_page_config(page_title="Botanalist Pro", layout="wide")
-st.title("⚽ Botanalist: Panel Profesional")
+st.title("⚽ Botanalist: Motor de Pronósticos")
 
 col1, col2 = st.columns(2)
 local = col1.text_input("Equipo Local", "Real Madrid")
 visita = col2.text_input("Equipo Visitante", "Tunez")
 
-if st.button("Generar Análisis Profesional"):
+if st.button("Generar Pronóstico Profesional"):
     stats_l = get_stats(local)
     stats_v = get_stats(visita)
     
@@ -66,11 +67,16 @@ if st.button("Generar Análisis Profesional"):
                 "Media (%)": f"{media}%"
             })
         
-        # Crear DataFrame y aplicar formato
+        # Crear DataFrame
         df = pd.DataFrame(datos)
-        st.dataframe(
-            df.style.applymap(color_conditional, subset=[f"{local.capitalize()}", f"{visita.capitalize()}", "Media (%)"]),
-            use_container_width=True,
-            hide_index=True
+        
+        # APLICAR ESTILO (Cambiado a .map para compatibilidad moderna)
+        styled_df = df.style.map(
+            color_conditional, 
+            subset=[f"{local.capitalize()}", f"{visita.capitalize()}", "Media (%)"]
         )
+        
+        st.dataframe(styled_df, use_container_width=True, hide_index=True)
         st.divider()
+
+st.success("Pronóstico generado con formato profesional.")
