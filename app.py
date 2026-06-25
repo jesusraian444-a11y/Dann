@@ -1,64 +1,69 @@
 import streamlit as st
 import pandas as pd
-import math
+import numpy as np
+from scipy.stats import poisson
 
-# --- LÓGICA DE PROBABILIDAD (POISSON) ---
-def poisson_prob_over(lam, line):
-    # Probabilidad de eventos > line
-    prob_under = sum([(math.exp(-lam) * (lam**i)) / math.factorial(i) for i in range(int(line) + 1)])
-    prob = (1 - prob_under) * 100
-    return round(prob, 1)
+# Configuración de página estilo profesional
+st.set_page_config(page_title="Botanalist Pro - Betting Engine", layout="wide")
+st.title("📊 Botanalist: Motor de Pronósticos Profesional")
 
-# --- BASE DE DATOS VARIADA (Simulación de Realidad) ---
-def get_team_stats(team_name):
-    # Equipos con diferentes "niveles" para que los porcentajes varíen
+# --- BASE DE DATOS REALISTA (Ajusta los valores aquí para cambiar el pronóstico) ---
+def get_team_data(name):
+    # Valores de Ataque (Goles esperados)
     db = {
-        "real madrid": {"goles": 2.8, "corners": 7.2, "tiros": 16.5, "tarjetas": 1.2},
-        "barcelona": {"goles": 2.6, "corners": 6.8, "tiros": 15.8, "tarjetas": 1.5},
-        "celta vigo": {"goles": 1.2, "corners": 4.1, "tiros": 9.2, "tarjetas": 2.8},
-        "getafe": {"goles": 0.9, "corners": 3.5, "tiros": 7.5, "tarjetas": 3.5},
-        "default": {"goles": 1.5, "corners": 5.0, "tiros": 11.0, "tarjetas": 2.0}
+        "real madrid": {"goles": 2.2, "corners": 6.5, "tiros": 15.0, "tarjetas": 1.5},
+        "barcelona": {"goles": 2.0, "corners": 6.0, "tiros": 14.0, "tarjetas": 1.8},
+        "getafe": {"goles": 0.8, "corners": 3.5, "tiros": 8.0, "tarjetas": 3.2},
+        "celta vigo": {"goles": 1.1, "corners": 4.0, "tiros": 9.5, "tarjetas": 2.5}
     }
-    return db.get(team_name.lower(), db["default"])
+    return db.get(name.lower(), {"goles": 1.5, "corners": 5.0, "tiros": 11.0, "tarjetas": 2.0})
+
+# --- MOTOR DE CÁLCULO (Poisson Match Probability) ---
+def calc_match_prob(avg_local, avg_visit, line):
+    # Combinamos la fuerza de ambos equipos para el evento
+    lambda_match = avg_local + avg_visit
+    # Poisson acumulada para obtener la probabilidad de Over
+    prob_over = 1 - poisson.cdf(line, lambda_match)
+    return round(prob_over * 100, 1)
 
 # --- INTERFAZ ---
-st.set_page_config(page_title="Botanalist Pro", layout="wide")
-st.title("⚽ Botanalist Pro: Motor de Pronósticos")
-
 col1, col2 = st.columns(2)
-local = col1.text_input("Equipo Local", "Real Madrid")
-visita = col2.text_input("Equipo Visitante", "Celta Vigo")
+team_local = col1.text_input("Equipo Local", "Real Madrid")
+team_visit = col2.text_input("Equipo Visitante", "Getafe")
 
-if st.button("Generar Pronóstico"):
-    data_l = get_team_stats(local)
-    data_v = get_team_stats(visita)
+if st.button("Generar Pronóstico Real"):
+    stats_l = get_team_data(team_local)
+    stats_v = get_team_data(team_visit)
 
-    # Configuración de mercados
-    config = {
-        "⚽ GOLES": {"key": "goles", "lines": [1.5, 2.5, 3.5]},
-        "🚩 CÓRNERS": {"key": "corners", "lines": [7.5, 9.5, 11.5]},
-        "🎯 TIROS AL ARCO": {"key": "tiros", "lines": [8.5, 10.5, 12.5]},
-        "🟨 TARJETAS": {"key": "tarjetas", "lines": [1.5, 2.5, 3.5]}
+    st.subheader(f"Análisis: {team_local} vs {team_visit}")
+    
+    # Definición de Mercados
+    mercados = {
+        "⚽ GOLES": {"stat": "goles", "lines": [1.5, 2.5, 3.5, 4.5]},
+        "🚩 CÓRNERS": {"stat": "corners", "lines": [7.5, 8.5, 9.5, 10.5]},
+        "🎯 TIROS AL ARCO": {"stat": "tiros", "lines": [8.5, 10.5, 12.5, 14.5]},
+        "🟨 TARJETAS": {"stat": "tarjetas", "lines": [1.5, 2.5, 3.5, 4.5]}
     }
 
-    for titulo, cfg in config.items():
-        st.subheader(titulo)
+    for titulo, cfg in mercados.items():
+        st.write(f"### {titulo}")
         
-        table_data = []
-        for l in cfg['lines']:
-            # Calculamos las probabilidades con Poisson
-            p_local = poisson_prob_over(data_l[cfg['key']], l)
-            p_visita = poisson_prob_over(data_v[cfg['key']], l)
-            
-            table_data.append({
+        # Generar tabla con cálculos únicos
+        data = []
+        for l in cfg["lines"]:
+            # Aquí está la clave: el cálculo se hace combinando ambos equipos
+            prob = calc_match_prob(stats_l[cfg["stat"]], stats_v[cfg["stat"]], l)
+            data.append({
                 "Línea": f"Más de {l}",
-                f"{local}": f"{p_local}%",
-                f"{visita}": f"{p_visita}%"
+                "Probabilidad (%)": prob,
+                "Estado": "Alta" if prob > 60 else ("Media" if prob > 40 else "Baja")
             })
         
-        # Convertimos a DataFrame para mostrarlo como tabla profesional
-        df = pd.DataFrame(table_data)
-        st.table(df)
-        st.divider()
-
-st.info("El modelo Poisson calcula la probabilidad real basada en el rendimiento histórico ajustado. Nota: Para mayor precisión, los datos se basan en el rendimiento ofensivo promedio.")
+        df = pd.DataFrame(data)
+        
+        # Estilo profesional tipo tabla de apuestas
+        st.dataframe(df, column_config={
+            "Probabilidad (%)": st.column_config.ProgressColumn(
+                "Probabilidad", format="%f%%", min_value=0, max_value=100
+            )
+        }, hide_index=True, use_container_width=True)
