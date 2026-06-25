@@ -2,60 +2,58 @@ import streamlit as st
 import pandas as pd
 import math
 
-# --- FUNCIÓN DE CÁLCULO DE PROBABILIDAD (POISSON) ---
-def poisson_over(lam, line):
-    """Calcula la probabilidad de que ocurran MÁS eventos que 'line' basado en la media 'lam'"""
-    if lam <= 0: return 0
+# --- FUNCIÓN MATEMÁTICA: DISTRIBUCIÓN POISSON ---
+def poisson_prob_over(lam, line):
+    """Calcula la probabilidad real de que ocurran MÁS de 'line' eventos."""
+    # Probabilidad acumulada de 0 a floor(line)
     prob_under = sum([(math.exp(-lam) * (lam**i)) / math.factorial(i) for i in range(int(line) + 1)])
+    # Probabilidad de Over = 1 - Probabilidad de Under
     return round((1 - prob_under) * 100, 1)
 
-# --- BASE DE DATOS SIMULADA ---
-def get_stats(team_name):
-    # Aquí puedes añadir más equipos cuando tengas la API real
+# --- BASE DE DATOS (AQUÍ ESTÁ LA MAGIA) ---
+def get_team_stats(team_name):
+    # Stats medias por partido. (Puedes editar estos números)
     db = {
-        "real madrid": {"goles": 2.5, "corners": 6.5, "tiros": 15.0},
-        "barcelona": {"goles": 2.3, "corners": 6.0, "tiros": 14.0},
-        "manchester city": {"goles": 2.8, "corners": 7.5, "tiros": 17.0},
-        "default": {"goles": 1.5, "corners": 5.0, "tiros": 10.0}
+        "real madrid": {"goles": 2.4, "corners": 6.2, "tiros": 14.5, "tarjetas": 1.9},
+        "barcelona": {"goles": 2.1, "corners": 5.8, "tiros": 13.8, "tarjetas": 2.1},
+        "manchester city": {"goles": 2.7, "corners": 7.0, "tiros": 16.2, "tarjetas": 1.4},
+        "default": {"goles": 1.5, "corners": 5.0, "tiros": 10.0, "tarjetas": 1.8}
     }
-    # Convertimos a minúsculas para que no importe si escriben en mayúsculas
     return db.get(team_name.lower(), db["default"])
 
-# --- CONFIGURACIÓN DE PÁGINA ---
+# --- INTERFAZ ---
 st.set_page_config(page_title="Analizador Pro", layout="wide")
-st.title("⚽ Botanalist Pro: Análisis Predictivo")
+st.title("📊 Pronosticador Profesional (Poisson Engine)")
 
-# --- SELECCIÓN DE EQUIPOS ---
 col1, col2 = st.columns(2)
 local = col1.text_input("Equipo Local", "Real Madrid")
 visita = col2.text_input("Equipo Visitante", "Barcelona")
 
-if st.button("Analizar Partido"):
-    with st.spinner("Procesando datos y calculando probabilidades..."):
-        # Obtener datos
-        data_l = get_stats(local)
-        data_v = get_stats(visita)
-        
-        # --- TABLAS DE ANÁLISIS ---
-        categorias = [
-            ("⚽ Goles", "goles", [2.5, 3.5, 4.5]),
-            ("🚩 Córners", "corners", [6.5, 7.5, 8.5, 9.5]),
-            ("🎯 Tiros al Arco", "tiros", [8.5, 10.5, 12.5])
-        ]
-        
-        for titulo, key, lineas in categorias:
-            st.subheader(titulo)
-            data_tabla = []
-            for l in lineas:
-                data_tabla.append({
-                    "Línea": f"Más de {l}",
-                    f"{local} (%)": poisson_over(data_l[key], l),
-                    f"{visita} (%)": poisson_over(data_v[key], l),
-                    "Media (%)": poisson_over((data_l[key] + data_v[key])/2, l)
-                })
-            
-            # Mostrar tabla profesional
-            st.table(pd.DataFrame(data_tabla))
-            st.divider()
+if st.button("Generar Probabilidades"):
+    data_l = get_team_stats(local)
+    data_v = get_team_stats(visita)
 
-    st.success("Análisis completado con éxito.")
+    # Definimos qué líneas queremos analizar por cada estadística
+    config = {
+        "⚽ GOLES": {"key": "goles", "lines": [1.5, 2.5, 3.5]},
+        "🚩 CÓRNERS": {"key": "corners", "lines": [7.5, 8.5, 9.5, 10.5]},
+        "🎯 TIROS AL ARCO": {"key": "tiros", "lines": [8.5, 10.5, 12.5]},
+        "🟨 TARJETAS AMARILLAS": {"key": "tarjetas", "lines": [1.5, 2.5, 3.5]}
+    }
+
+    for titulo, cfg in config.items():
+        st.subheader(titulo)
+        
+        table_data = []
+        for l in cfg['lines']:
+            table_data.append({
+                "Línea": f"Más de {l}",
+                f"{local} (%)": poisson_prob_over(data_l[cfg['key']], l),
+                f"{visita} (%)": poisson_prob_over(data_v[cfg['key']], l)
+            })
+        
+        df = pd.DataFrame(table_data)
+        st.table(df)
+        st.divider()
+
+st.info("Nota: Los porcentajes se calculan mediante la distribución de Poisson, reflejando la probabilidad real de superar la línea establecida.")
